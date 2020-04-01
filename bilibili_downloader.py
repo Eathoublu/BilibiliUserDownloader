@@ -11,11 +11,11 @@ class BilibiliDownloader(object):
     @staticmethod
     def run(dic, urll):
         for u in urll:
-            try:
-                sys.argv = ['you-get', '-o', dic, u]
-                you_get.main()
-            except Exception as e:
-                print(e)
+            # try:
+            sys.argv = ['you-get', '-o', dic, u]
+            you_get.main()
+            # except Exception as e:
+            #     print(e)
         return
 
 class BilibiliVideoManager(object):
@@ -52,11 +52,9 @@ class BilibiliVideoManager(object):
         title = self.trule.findall(c)[0]
         return title
 
-
-
-
 class BilibiliUserManager(object):
     def __init__(self, prefix):
+        # 12473905
         self.prefix = prefix
         self.burl2 = 'https://space.bilibili.com/{}'
         self.i2url = 'https://api.bilibili.com/x/relation/stat?vmid={}'
@@ -66,6 +64,7 @@ class BilibiliUserManager(object):
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36',
         }
         self.uid = None
+        self.alphabet = 'fZodR9XQDSUm21yCkr6zBqiveYah8bt4xsWpHnJE7jL5VG3guMTKNPAwcF'
 
     def run(self, uid):
         uid = str(uid)
@@ -115,8 +114,22 @@ class BilibiliUserManager(object):
             pn += 1
         return videol
 
+    def dec(self, x):
+        r = 0
+        for i, v in enumerate([11, 10, 3, 8, 4, 6]):
+            r += self.alphabet.find(x[v]) * 58 ** i
+        return (r - 0x2_0840_07c0) ^ 0x0a93_b324
+
+    def enc(self, x):
+        x = (x ^ 0x0a93_b324) + 0x2_0840_07c0
+        r = list('BV1**4*1*7**')
+        for v in [11, 10, 3, 8, 4, 6]:
+            x, d = divmod(x, 58)
+            r[v] = self.alphabet[d]
+        return ''.join(r)
+
     @staticmethod
-    def parselist(jso, mode='b'):
+    def parselist(jso, mode='a'):
         vlist = jso['data']['list']['vlist']
         idl = []
         if not vlist:
@@ -125,7 +138,7 @@ class BilibiliUserManager(object):
             if mode=='b':
                 idl.append(v['bvid'])
             else:
-                idl.append(v['aid'])
+                idl.append(v['bvid'])
         return idl
 
     def request(self, url):
@@ -137,8 +150,10 @@ class Manager(object):
         self.bum = BilibiliUserManager(prefix=prefix)
         self.bvm = BilibiliVideoManager()
         self.bd = BilibiliDownloader()
+        self.fall_list = []
 
-    def run(self, uid):
+    def run(self, uid, startk=None):
+        self.fall_list = []
         self.bum.run(uid=uid)
         vlist= self.bum.searchlist()
         vbase = self.prefix+'/'+str(uid)+'/video/'
@@ -146,14 +161,27 @@ class Manager(object):
         tk = len(vlist)
         for v in vlist:
             k += 1
+            if startk:
+                if k < startk:
+                    continue
             print('{}/{}'.format(k, tk))
+
             svl = self.bvm.run(v)
             tit = str(self.bvm.gettitle(svl[0])).replace('/', '\\')
-            if os.path.exists(vbase+tit):
+            if os.path.exists(vbase+str(k)+'_'+tit):
                 pass
             else:
-                os.mkdir(vbase+tit)
-            self.bd.run(vbase+tit, svl)
+                os.mkdir(vbase+str(k)+'_'+tit)
+            try:
+                # print(svl)
+                self.bd.run(vbase+str(k)+'_'+tit, svl)
+            except:
+                print('Fall one. k={}, svl={}'.format(k, svl))
+                self.fall_list.append(svl)
+
+        if self.fall_list:
+            print('All Fall:{}'.format(self.fall_list))
+        print('Finish!')
 
 if __name__ == '__main__':
 
